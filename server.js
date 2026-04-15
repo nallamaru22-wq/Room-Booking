@@ -17,7 +17,7 @@ const Room = mongoose.model("Room", {
   name: String,
   location: String,
   price: Number,
-  beds: [{ bedId: Number, status: String }]
+  beds: [{ bedId: Number, status: String, phone: String }]
 });
 
 const Booking = mongoose.model("Booking", {
@@ -32,6 +32,7 @@ const Booking = mongoose.model("Booking", {
 // ✅ APIs
 app.get("/rooms", async (req, res) => {
   const rooms = await Room.find();
+  //console.log("Rooms from DB:", rooms); 
   const bookings = await Booking.find({ status: "CONFIRMED" });
 
   const updatedRooms = rooms.map(room => {
@@ -42,7 +43,7 @@ app.get("/rooms", async (req, res) => {
 
       return {
         ...bed.toObject(),
-        userName: booking ? booking.userName : null
+        userName: booking ? booking.userName : null, phone: booking ? booking.phone : null, status: booking ? "occupied" : bed.status 
       };
     });
 
@@ -55,6 +56,8 @@ app.get("/rooms", async (req, res) => {
   res.json(updatedRooms);
 });
 app.post("/book", async (req, res) => {
+  try {
+    console.log("BOOK API HIT:", req.body);
   const { roomId, bedId, userName, userEmail, phone } = req.body;
 
   const room = await Room.findById(roomId);
@@ -64,7 +67,7 @@ app.post("/book", async (req, res) => {
     return res.json({ message: "Room not found" });
   }
 
-  const bed = room.beds.find(b => b.bedId === bedId);
+  const bed = room.beds.find(b => b.bedId === Number(bedId));
 
   // ✅ FIX: check bed exists
   if (!bed) {
@@ -83,21 +86,27 @@ app.post("/book", async (req, res) => {
     bedId,
     userName,
     userEmail,
-    phone,
+    phone: String(phone),
     status: "CONFIRMED"
   });
 
   res.json({ message: "Booking confirmed" });
+} catch (err) {
+    console.log("BOOK ERROR:", err);
+    res.status(500).json({ message: "Error" });
+  }
 });
 
 //Cancel API
 app.post("/cancel", async (req, res) => {
+  try {
+    console.log("CANCEL API HIT:", req.body);
   const { roomId, bedId } = req.body;
 
   const room = await Room.findById(roomId);
   if (!room) return res.json({ message: "Room not found" });
 
-  const bed = room.beds.find(b => b.bedId === bedId);
+  const bed = room.beds.find(b => b.bedId === Number(bedId));
   if (!bed) return res.json({ message: "Bed not found" });
 
   // ✅ NEW CONDITION (VERY IMPORTANT)
@@ -115,11 +124,19 @@ app.post("/cancel", async (req, res) => {
     { $set: { status: "CANCELLED" } }
   );
 
-  res.json({ message: "Bed vacated successfully" });
+  res.json({ message: "Cancelled successfully" });
+} catch (err) {
+    console.log("CANCEL ERROR:", err);
+    res.status(500).json({ message: "Error" });
+  }
 });
 
 app.get("/bookings", async (req, res) => {
   const data = await Booking.find();
+  res.json(data);
+});
+app.get("/cancelled", async (req, res) => {
+  const data = await Booking.find({ status: "CANCELLED" });
   res.json(data);
 });
 
